@@ -1,0 +1,23 @@
+.venv/
+.env
+__pycache__/
+data/
+
+# Generated reports and local analysis exports
+reports/
+*.docx
+
+# macOS
+.DS_Store
+
+# Python cache/build artifacts
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+*.egg-info/
+
+# Local logs
+*.log
