@@ -43,6 +43,32 @@ Recommended order:
    transfers to known creators, direct transfers between funding wallets, and
    shared counterparties.
 
+5. `src/analyze_victim_approvals.py`
+   Scans BEP20 `Approval` logs where the spender is a known phishing contract or
+   a same-creator candidate deployment. It writes victim-, token-, spender-, and
+   daily-level statistics to `data/victim_analysis/`.
+
+   ```bash
+   .venv/bin/python src/analyze_victim_approvals.py
+   ```
+
+   Add `--known-only` to scan only the two confirmed contracts, or
+   `--trace-transfers` to also scan candidate token outflows after approval. The
+   transfer scan is heavier because it queries `Transfer` logs for approved
+   victim/token pairs. This global approval scan requires either a strong indexed
+   RPC or a responsive Etherscan logs API.
+
+6. `src/analyze_victim_outflows_from_receipts.py`
+   Fetches transactions involving the phishing contracts and parses their
+   receipts for BEP20 `Transfer` events. This is a lighter victim-side analysis
+   path for observed token outflows from victims.
+
+   ```bash
+   .venv/bin/python src/analyze_victim_outflows_from_receipts.py --known-only
+   ```
+
+   Outputs are written to `data/victim_receipt_analysis/`.
+
 ## Files
 
 - `src/etherscan_client.py`
@@ -66,6 +92,35 @@ Recommended order:
   Funding-wallet relationship analysis. It links the first-layer gas funding
   wallets by upstream funding, direct transfers, and common counterparties.
 
+- `src/analyze_victim_approvals.py`
+  Victim-side approval analysis. It uses Etherscan only to discover creators and
+  same-creator candidate deployments, then uses `BSC_RPC_URL` for log scanning.
+  Outputs include `approvals.csv`, `victim_summary.csv`, `token_summary.csv`,
+  `spender_summary.csv`, `daily_summary.csv`, and optionally
+  `candidate_transfer_outflows.csv`.
+
+- `src/analyze_victim_outflows_from_receipts.py`
+  Receipt-based victim outflow analysis. It uses Etherscan transaction lists and
+  RPC transaction receipts to produce `spender_transactions.csv`,
+  `observed_token_transfers.csv`, `victim_outflow_summary.csv`,
+  `token_outflow_summary.csv`, `spender_outflow_summary.csv`, and
+  `daily_outflow_summary.csv`.
+
+## API Limits
+
+`src/etherscan_client.py` enforces a default 0.4 second minimum interval between
+uncached Etherscan requests and a default daily budget of 80,000 uncached
+requests. Responses are cached under `.cache/etherscan/`, so repeated local runs
+do not spend the request budget again.
+
+These defaults can be overridden with environment variables:
+
+```bash
+ETHERSCAN_MIN_INTERVAL=0.4
+ETHERSCAN_DAILY_REQUEST_LIMIT=80000
+ETHERSCAN_CACHE_DIR=.cache/etherscan
+```
+
 ## Current Findings
 
 - The two known addresses are confirmed contracts.
@@ -77,5 +132,4 @@ Recommended order:
 
 ## Next Steps
 
-- Analyze victim `approve` activity against the known and candidate contracts.
 - Trace stolen fund flow after approvals/drain transactions.
