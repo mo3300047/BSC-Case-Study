@@ -43,31 +43,66 @@ Recommended order:
    transfers to known creators, direct transfers between funding wallets, and
    shared counterparties.
 
-5. `src/analyze_victim_approvals.py`
-   Scans BEP20 `Approval` logs where the spender is a known phishing contract or
-   a same-creator candidate deployment. It writes victim-, token-, spender-, and
-   daily-level statistics to `data/victim_analysis/`.
-
-   ```bash
-   .venv/bin/python src/analyze_victim_approvals.py
-   ```
-
-   Add `--known-only` to scan only the two confirmed contracts, or
-   `--trace-transfers` to also scan candidate token outflows after approval. The
-   transfer scan is heavier because it queries `Transfer` logs for approved
-   victim/token pairs. This global approval scan requires either a strong indexed
-   RPC or a responsive Etherscan logs API.
-
-6. `src/analyze_victim_outflows_from_receipts.py`
+5. `src/analyze_victim_outflows_from_receipts.py`
    Fetches transactions involving the phishing contracts and parses their
-   receipts for BEP20 `Transfer` events. This is a lighter victim-side analysis
-   path for observed token outflows from victims.
+   receipts for BEP20 `Transfer` events. This is the current victim-side
+   analysis path for observed token outflows from victims.
 
    ```bash
    .venv/bin/python src/analyze_victim_outflows_from_receipts.py --known-only
    ```
 
    Outputs are written to `data/victim_receipt_analysis/`.
+
+6. `src/normalize_victim_outflow_amounts.py`
+   Reads the observed token transfers, fetches token metadata from RPC, converts
+   raw transfer values into token amounts, and writes amount summaries.
+
+   ```bash
+   .venv/bin/python src/normalize_victim_outflow_amounts.py
+   ```
+
+   Outputs are written to `data/victim_amount_analysis/`.
+
+7. `src/qa_victim_outflows.py`
+   Validates normalized outflow rows against cached transaction receipts and
+   creates samples for manual review.
+
+   ```bash
+   .venv/bin/python src/qa_victim_outflows.py
+   ```
+
+   Outputs are written to `data/victim_qa/`.
+
+8. `src/analyze_outflow_receivers.py`
+   Aggregates normalized victim outflows by receiving address to show collection
+   patterns and concentration.
+
+   ```bash
+   .venv/bin/python src/analyze_outflow_receivers.py
+   ```
+
+   Outputs are written to `data/receiver_analysis/`.
+
+9. `src/trace_receiver_downstream.py`
+   Fetches token transfers for the receiver addresses and aggregates downstream
+   recipients.
+
+   ```bash
+   .venv/bin/python src/trace_receiver_downstream.py
+   ```
+
+   Outputs are written to `data/receiver_downstream/`.
+
+10. `src/trace_downstream_next_hop.py`
+    Traces the next hop from the largest downstream recipients to see whether
+    funds continue moving or consolidate again.
+
+    ```bash
+    .venv/bin/python src/trace_downstream_next_hop.py
+    ```
+
+    Outputs are written to `data/downstream_next_hop/`.
 
 ## Files
 
@@ -92,19 +127,40 @@ Recommended order:
   Funding-wallet relationship analysis. It links the first-layer gas funding
   wallets by upstream funding, direct transfers, and common counterparties.
 
-- `src/analyze_victim_approvals.py`
-  Victim-side approval analysis. It uses Etherscan only to discover creators and
-  same-creator candidate deployments, then uses `BSC_RPC_URL` for log scanning.
-  Outputs include `approvals.csv`, `victim_summary.csv`, `token_summary.csv`,
-  `spender_summary.csv`, `daily_summary.csv`, and optionally
-  `candidate_transfer_outflows.csv`.
-
 - `src/analyze_victim_outflows_from_receipts.py`
   Receipt-based victim outflow analysis. It uses Etherscan transaction lists and
   RPC transaction receipts to produce `spender_transactions.csv`,
   `observed_token_transfers.csv`, `victim_outflow_summary.csv`,
   `token_outflow_summary.csv`, `spender_outflow_summary.csv`, and
   `daily_outflow_summary.csv`.
+
+- `src/normalize_victim_outflow_amounts.py`
+  Amount normalization for victim outflows. It produces
+  `normalized_victim_outflows.csv`, `overall_summary.csv`,
+  `token_amount_summary.csv`, `victim_amount_summary.csv`,
+  `spender_amount_summary.csv`, and `daily_amount_summary.csv`.
+
+- `src/qa_victim_outflows.py`
+  QA validation for victim outflows. It produces `validated_outflows.csv`,
+  `qa_overall_summary.csv`, and `qa_sampled_outflows.csv`.
+
+- `src/analyze_outflow_receivers.py`
+  Receiver-side aggregation for victim outflows. It produces
+  `receiver_overall_summary.csv`, `receiver_summary.csv`,
+  `receiver_token_summary.csv`, `daily_receiver_summary.csv`, and
+  `top_receiver_outflows.csv`.
+
+- `src/trace_receiver_downstream.py`
+  Downstream tracing for receiver addresses. It produces
+  `downstream_overall_summary.csv`, `receiver_flow_summary.csv`,
+  `downstream_recipient_summary.csv`,
+  `downstream_recipient_all_tokens_summary.csv`, and
+  `receiver_token_transfers.csv`.
+
+- `src/trace_downstream_next_hop.py`
+  Next-hop tracing for the largest downstream recipients. It produces
+  `next_hop_overall_summary.csv`, `target_downstream_flow_summary.csv`,
+  `next_hop_recipient_summary.csv`, and `next_hop_token_transfers.csv`.
 
 ## API Limits
 
@@ -129,6 +185,20 @@ ETHERSCAN_CACHE_DIR=.cache/etherscan
 - Both creators show batch contract deployment behavior.
 - The two gas funding wallets have strong links, including direct transfers and
   shared counterparties.
+- The two confirmed phishing contracts show 1,632 candidate victim token
+  outflows across 458 victim addresses, totaling about 5.66M USDC/USDT.
+- Receipt QA found exact matching `Transfer` logs for all 1,632 normalized
+  outflows, with 0 failed rows and 0 rows requiring review.
+- The 5.66M USDC/USDT flowed into only 7 receiver addresses. The top receiver
+  collected about 3.06M, and the top 3 receivers collected about 99.4% of the
+  observed victim outflow amount.
+- Those 7 receivers subsequently sent about 5.94M USDC/USDT to 108 downstream
+  recipients. The downstream total is higher than the observed victim outflow
+  because the receiver addresses also had non-victim incoming funds in the same
+  tokens.
+- The largest downstream recipients also moved funds onward. The traced top
+  targets sent about 6.28M USDC/USDT to 93 next-hop recipients, with the largest
+  next-hop address receiving about 1.50M USDC.
 
 ## Next Steps
 
