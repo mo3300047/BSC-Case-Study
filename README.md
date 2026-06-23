@@ -104,6 +104,17 @@ Recommended order:
 
     Outputs are written to `data/downstream_next_hop/`.
 
+11. `src/analyze_creator_candidate_contracts.py`
+    Profiles all contracts deployed by the two known phishing creators. It
+    compares bytecode, reads source metadata, scans receipts for victim-like
+    token outflows, and checks overlap with known receiver infrastructure.
+
+    ```bash
+    .venv/bin/python src/analyze_creator_candidate_contracts.py
+    ```
+
+    Outputs are written to `data/candidate_contract_analysis/`.
+
 ## Files
 
 - `src/etherscan_client.py`
@@ -162,6 +173,11 @@ Recommended order:
   `next_hop_overall_summary.csv`, `target_downstream_flow_summary.csv`,
   `next_hop_recipient_summary.csv`, and `next_hop_token_transfers.csv`.
 
+- `src/analyze_creator_candidate_contracts.py`
+  Candidate contract profiling for same-creator deployments. It produces
+  `candidate_contract_catalog.csv`, `candidate_contract_transfers.csv`, and
+  `risk_summary.csv`.
+
 ## API Limits
 
 `src/etherscan_client.py` enforces a default 0.4 second minimum interval between
@@ -199,7 +215,13 @@ ETHERSCAN_CACHE_DIR=.cache/etherscan
 - The largest downstream recipients also moved funds onward. The traced top
   targets sent about 6.28M USDC/USDT to 93 next-hop recipients, with the largest
   next-hop address receiving about 1.50M USDC.
+- The two creators deployed 67 contracts in total, including 2 confirmed
+  phishing contracts and 65 same-creator candidates. Automated profiling flagged
+  1 high-confidence phishing contract, 22 suspicious contracts, 11 low-signal
+  active contracts, and 31 inactive candidates.
 
 ## Next Steps
 
-- Trace stolen fund flow after approvals/drain transactions.
+- Produce a simple victim-loss report from the existing CSV summaries.
+- Deep-dive the flagged candidate contracts, especially bytecode matches and
+  contracts with stablecoin outflows to known receiver infrastructure.
